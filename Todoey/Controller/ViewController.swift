@@ -17,17 +17,8 @@ class ViewController: UITableViewController {
 		super.viewDidLoad()
 		// Do any additional setup after loading the view.
 		
-		let newItem1 = Items()
-		newItem1.itemName = "First"
-		arr.append(newItem1)
+		loadData()
 		
-		let newItem2 = Items()
-		newItem2.itemName = "Second"
-		arr.append(newItem2)
-		
-		let newItem3 = Items()
-		newItem3.itemName = "Third"
-		arr.append(newItem3)
 	}
 	
 	//TableView Data Sources
@@ -38,6 +29,7 @@ class ViewController: UITableViewController {
 	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 		let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
 		cell.textLabel?.text = arr[indexPath.row].itemName
+		cell.accessoryType = arr[indexPath.row].isDone ? .checkmark : .none
 		return cell
 	}
 	
@@ -85,5 +77,18 @@ class ViewController: UITableViewController {
 			print("Error by Encoder: \(error)")
 		}
 	}
+	
+	func loadData(){
+		if let data = try? Data(contentsOf: dataFilePath!) {
+			let decoder = PropertyListDecoder()
+			do {
+				arr = try decoder.decode([Items].self, from: data)
+			} catch {
+				print("Error by Decoder: \(error)")
+			}
+		}
+	}
+	
+	
 }
 
