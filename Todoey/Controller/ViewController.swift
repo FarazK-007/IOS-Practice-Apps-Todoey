@@ -6,16 +6,20 @@
 //
 
 import UIKit
+import CoreData
 
 class ViewController: UITableViewController {
 	
-	var arr = [Items]()
+	var arr = [Item]()
+	let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 	
-	let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+	let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
 	
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		// Do any additional setup after loading the view.
+		
+		print(dataFilePath)
 		
 		loadData()
 		
@@ -28,7 +32,7 @@ class ViewController: UITableViewController {
 
 	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 		let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
-		cell.textLabel?.text = arr[indexPath.row].itemName
+		cell.textLabel?.text = arr[indexPath.row].title
 		cell.accessoryType = arr[indexPath.row].isDone ? .checkmark : .none
 		return cell
 	}
@@ -49,8 +53,9 @@ class ViewController: UITableViewController {
 		let alert = UIAlertController(title: "Add Item", message: "", preferredStyle: .alert)
 		let action = UIAlertAction(title: "ADD", style: .default) { (action) in
 			
-			let newItem = Items()
-			newItem.itemName = alertText.text!
+			let newItem = Item(context: self.context)
+			newItem.isDone = false
+			newItem.title = alertText.text!
 			
 			self.arr.append(newItem)
 			self.saveItems()
@@ -69,26 +74,40 @@ class ViewController: UITableViewController {
 	}
 	
 	func saveItems() {
-		let encoder = PropertyListEncoder()
 		do {
-			let data = try encoder.encode(arr)
-			try data.write(to: dataFilePath!)
+			try context.save()
 		} catch {
 			print("Error by Encoder: \(error)")
 		}
 	}
 	
-	func loadData(){
-		if let data = try? Data(contentsOf: dataFilePath!) {
-			let decoder = PropertyListDecoder()
-			do {
-				arr = try decoder.decode([Items].self, from: data)
-			} catch {
-				print("Error by Decoder: \(error)")
+	func loadData(with request:NSFetchRequest<Item> = Item.fetchRequest()){
+		do {
+			arr = try context.fetch(request)
+			
+			tableView.reloadData()
+		} catch {
+			print("Error by Decoder: \(error)")
+		}
+	}
+}
+
+extension ViewController: UISearchBarDelegate {
+	func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+		let request: NSFetchRequest<Item> = Item.fetchRequest()
+		request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+		request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+		
+		loadData(with: request)
+	}
+	
+	func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+		if searchBar.text?.count == 0 {
+			loadData()
+			DispatchQueue.main.async {
+				searchBar.resignFirstResponder()
 			}
 		}
 	}
-	
-	
 }
 
