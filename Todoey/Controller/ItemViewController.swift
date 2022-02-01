@@ -8,7 +8,7 @@
 import UIKit
 import RealmSwift
 
-class ItemViewController: UITableViewController {
+class ItemViewController: SwipeTableViewController {
 	
 	var arr: Results<Item>?
 	let realm = try! Realm()
@@ -30,7 +30,7 @@ class ItemViewController: UITableViewController {
 	}
 
 	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-		let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+		let cell = super.tableView(tableView, cellForRowAt: indexPath)
 		cell.textLabel?.text = arr?[indexPath.row].title
 		cell.accessoryType = (arr?[indexPath.row].isDone)! ? .checkmark : .none
 		return cell
@@ -88,6 +88,18 @@ class ItemViewController: UITableViewController {
 	func loadData(){
 		arr = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
 		tableView.reloadData()
+	}
+	
+	override func updateModel(at indexPath: IndexPath) {
+		if let itemArrForDeletion = arr?[indexPath.row] {
+			do {
+				try realm.write{
+					realm.delete(itemArrForDeletion)
+				}
+			} catch {
+				print(error)
+			}
+		}
 	}
 }
 
