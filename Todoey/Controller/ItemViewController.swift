@@ -6,115 +6,99 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class ItemViewController: UITableViewController {
 	
-	var arr = [Item]()
-	let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-	
+	var arr: Results<Item>?
+	let realm = try! Realm()
+
 	var selectedCategory: Category? {
 		didSet {
 			loadData()
 		}
 	}
-	
-	let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-	
+
 	override func viewDidLoad() {
 		super.viewDidLoad()
-		// Do any additional setup after loading the view.
-		
-		print(dataFilePath)
-		
+
 	}
-	
-	//TableView Data Sources
+
+	//MARK: - TableView Data Sources
 	override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-		return arr.count
+		return arr?.count ?? 1
 	}
 
 	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 		let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
-		cell.textLabel?.text = arr[indexPath.row].title
-		cell.accessoryType = arr[indexPath.row].isDone ? .checkmark : .none
+		cell.textLabel?.text = arr?[indexPath.row].title
+		cell.accessoryType = (arr?[indexPath.row].isDone)! ? .checkmark : .none
 		return cell
 	}
-	
-	//TableView Delegate Methods
-	override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-		tableView.deselectRow(at: indexPath, animated: true)
-		
-		arr[indexPath.row].isDone = !arr[indexPath.row].isDone
-		tableView.cellForRow(at: indexPath)?.accessoryType = arr[indexPath.row].isDone ? .checkmark : .none
-		saveItems()
-	}
 
-	@IBAction func barAddButtonPressed(_ sender: UIBarButtonItem) {
+	//MARK: - TableView Delegate Methods
+	override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
 		
-		var alertText = UITextField()
-		
-		let alert = UIAlertController(title: "Add Item", message: "", preferredStyle: .alert)
-		let action = UIAlertAction(title: "ADD", style: .default) { (action) in
-			
-			let newItem = Item(context: self.context)
-			newItem.isDone = false
-			newItem.title = alertText.text!
-			newItem.parentCategory = self.selectedCategory
-			
-			self.arr.append(newItem)
-			self.saveItems()
-			
-			self.tableView.reloadData()
+		if let item = arr?[indexPath.row] {
+			do {
+				try realm.write{
+					item.isDone = !item.isDone
+				}
+			} catch {
+				print(error)
+			}
 		}
 		
+		tableView.reloadData()
+		tableView.deselectRow(at: indexPath, animated: true)
+
+	}
+	
+	//MARK: - IBAction
+	@IBAction func barAddButtonPressed(_ sender: UIBarButtonItem) {
+
+		var alertText = UITextField()
+
+		let alert = UIAlertController(title: "Add Item", message: "", preferredStyle: .alert)
+		let action = UIAlertAction(title: "ADD", style: .default) { (action) in
+
+			if let currCategory = self.selectedCategory {
+				try! self.realm.write{
+					let newItem = Item()
+					newItem.title = alertText.text!
+					newItem.date = Date()
+					currCategory.items.append(newItem)
+				}
+			}
+
+			self.tableView.reloadData()
+		}
+
 		alert.addTextField { (alertTextField) in
 			alertTextField.placeholder = "Add Name of an Item"
 			alertText = alertTextField
 		}
-		
+
 		alert.addAction(action)
-		
+
 		present(alert, animated: true, completion: nil)
 	}
 	
-	func saveItems() {
-		do {
-			try context.save()
-		} catch {
-			print("Error by Encoder: \(error)")
-		}
-	}
-	
-	func loadData(with request:NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil){
-		
-		let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
-		
-		if let funcPredicate = predicate {
-			request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate,funcPredicate])
-		} else {
-			request.predicate = categoryPredicate
-		}
-		
-		do {
-			arr = try context.fetch(request)
-			
-			tableView.reloadData()
-		} catch {
-			print("Error by Decoder: \(error)")
-		}
+	//MARK: - Load Data
+	func loadData(){
+		arr = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
+		tableView.reloadData()
 	}
 }
 
+//MARK: - Extension: UISearchBarDelegate
 extension ItemViewController: UISearchBarDelegate {
 	func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-		let request: NSFetchRequest<Item> = Item.fetchRequest()
-		let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-		request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+		arr = arr?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "date", ascending: true)
 		
-		loadData(with: request, predicate: predicate)
+		tableView.reloadData()
 	}
-	
+
 	func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
 		if searchBar.text?.count == 0 {
 			loadData()
